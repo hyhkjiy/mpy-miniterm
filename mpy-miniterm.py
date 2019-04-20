@@ -32,7 +32,7 @@ try:
     raw_input
 except NameError:
     # pylint: disable=redefined-builtin,invalid-name
-    raw_input = input   # in python3 it's "raw"
+    raw_input = input  # in python3 it's "raw"
     unichr = chr
 
 
@@ -43,7 +43,8 @@ def key_description(character):
         return 'Ctrl+{:c}'.format(ord('@') + ascii_code)
     else:
         return repr(character)
-    
+
+
 def sha256(fn):
     hash_sha256 = hashlib.sha256()
     try:
@@ -56,6 +57,7 @@ def sha256(fn):
         return binascii.hexlify(hash_sha256.digest())
     except (OSError, IOError):
         return None
+
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 class ConsoleBase(object):
@@ -85,7 +87,10 @@ class ConsoleBase(object):
 
     def write(self, text):
         """Write string"""
-        self.output.write(text)
+        try:
+            self.output.write(text)
+        except UnicodeEncodeError:
+            pass
         self.output.flush()
 
     def cancel(self):
@@ -107,6 +112,7 @@ if os.name == 'nt':  # noqa
     import msvcrt
     import ctypes
 
+
     class Out(object):
         """file-like wrapper that uses os.write"""
 
@@ -118,6 +124,7 @@ if os.name == 'nt':  # noqa
 
         def write(self, s):
             os.write(self.fd, s)
+
 
     class Console(ConsoleBase):
         def __init__(self):
@@ -141,7 +148,7 @@ if os.name == 'nt':  # noqa
                 z = msvcrt.getwch()
                 if z == unichr(13):
                     return unichr(10)
-                elif z in (unichr(0), unichr(0x0e)):    # functions keys, ignore
+                elif z in (unichr(0), unichr(0x0e)):  # functions keys, ignore
                     msvcrt.getwch()
                 else:
                     return z
@@ -156,6 +163,7 @@ elif os.name == 'posix':
     import atexit
     import termios
     import fcntl
+
 
     class Console(ConsoleBase):
         def __init__(self):
@@ -178,7 +186,7 @@ elif os.name == 'posix':
         def getkey(self):
             c = self.enc_stdin.read(1)
             if c == unichr(0x7f):
-                c = unichr(8)    # map the BS key (which yields DEL) to backspace
+                c = unichr(8)  # map the BS key (which yields DEL) to backspace
             return c
 
         def cancel(self):
@@ -196,6 +204,7 @@ else:
 
 class Transform(object):
     """do-nothing: forward all data unchanged"""
+
     def rx(self, text):
         """text received from serial port"""
         return text
@@ -316,7 +325,7 @@ EOL_TRANSFORMATIONS = {
 }
 
 TRANSFORMATIONS = {
-    'direct': Transform,    # no transformation
+    'direct': Transform,  # no transformation
     'default': NoTerminal,
     'nocontrol': NoControls,
     'printable': Printable,
@@ -378,7 +387,6 @@ class Miniterm(object):
         self.delete = delete
         self.repl_control = replcontrol.ReplControl(debug=False, reset=False)
         self.repl_control.port = serial_instance
-
 
     def _start_reader(self):
         """Start reader thread"""
@@ -479,7 +487,7 @@ class Miniterm(object):
         except serial.SerialException:
             self.alive = False
             self.console.cancel()
-            raise       # XXX handle instead of re-raise?
+            raise  # XXX handle instead of re-raise?
 
     def writer(self):
         """\
@@ -500,12 +508,12 @@ class Miniterm(object):
                     self.handle_menu_key(c)
                     menu_active = False
                 elif c == self.menu_character:
-                    menu_active = True      # next char will be for menu
+                    menu_active = True  # next char will be for menu
                 elif c == self.exit_character:
-                    self.stop()             # exit app
+                    self.stop()  # exit app
                     break
                 else:
-                    #~ if self.raw:
+                    # ~ if self.raw:
                     text = c
                     for transformation in self.tx_transformations:
                         text = transformation.tx(text)
@@ -526,86 +534,86 @@ class Miniterm(object):
             self.serial.write(self.tx_encoder.encode(c))
             if self.echo:
                 self.console.write(c)
-        elif c == '\x15':                       # CTRL+U -> upload file
+        elif c == '\x15':  # CTRL+U -> upload file
             self.upload_file()
-        elif c in '\x08hH?':                    # CTRL+H, h, H, ? -> Show help
+        elif c in '\x08hH?':  # CTRL+H, h, H, ? -> Show help
             sys.stderr.write(self.get_help_text())
-        elif c == '\x12':                       # CTRL+R -> Toggle RTS
+        elif c == '\x12':  # CTRL+R -> Toggle RTS
             self.serial.rts = not self.serial.rts
             sys.stderr.write('--- RTS {} ---\n'.format('active' if self.serial.rts else 'inactive'))
-        elif c == '\x04':                       # CTRL+D -> Toggle DTR
+        elif c == '\x04':  # CTRL+D -> Toggle DTR
             self.serial.dtr = not self.serial.dtr
             sys.stderr.write('--- DTR {} ---\n'.format('active' if self.serial.dtr else 'inactive'))
-        elif c == '\x02':                       # CTRL+B -> toggle BREAK condition
+        elif c == '\x02':  # CTRL+B -> toggle BREAK condition
             self.serial.break_condition = not self.serial.break_condition
             sys.stderr.write('--- BREAK {} ---\n'.format('active' if self.serial.break_condition else 'inactive'))
-        elif c == '\x05':                       # CTRL+E -> toggle local echo
+        elif c == '\x05':  # CTRL+E -> toggle local echo
             self.echo = not self.echo
             sys.stderr.write('--- local echo {} ---\n'.format('active' if self.echo else 'inactive'))
-        elif c == '\x06':                       # CTRL+F -> edit filters
+        elif c == '\x06':  # CTRL+F -> edit filters
             self.change_filter()
-        elif c == '\x0c':                       # CTRL+L -> EOL mode
-            modes = list(EOL_TRANSFORMATIONS)   # keys
+        elif c == '\x0c':  # CTRL+L -> EOL mode
+            modes = list(EOL_TRANSFORMATIONS)  # keys
             eol = modes.index(self.eol) + 1
             if eol >= len(modes):
                 eol = 0
             self.eol = modes[eol]
             sys.stderr.write('--- EOL: {} ---\n'.format(self.eol.upper()))
             self.update_transformations()
-        elif c == '\x01':                       # CTRL+A -> set encoding
+        elif c == '\x01':  # CTRL+A -> set encoding
             self.change_encoding()
-        elif c == '\x09':                       # CTRL+I -> info
+        elif c == '\x09':  # CTRL+I -> info
             self.dump_port_settings()
-        #~ elif c == '\x01':                       # CTRL+A -> cycle escape mode
-        #~ elif c == '\x0c':                       # CTRL+L -> cycle linefeed mode
-        elif c in 'pP':                         # P -> change port
+        # ~ elif c == '\x01':                       # CTRL+A -> cycle escape mode
+        # ~ elif c == '\x0c':                       # CTRL+L -> cycle linefeed mode
+        elif c in 'pP':  # P -> change port
             self.change_port()
-        elif c in 'sS':                         # S -> suspend / open port temporarily
+        elif c in 'sS':  # S -> suspend / open port temporarily
             self.suspend_port()
-        elif c in 'bB':                         # B -> change baudrate
+        elif c in 'bB':  # B -> change baudrate
             self.change_baudrate()
-        elif c == '8':                          # 8 -> change to 8 bits
+        elif c == '8':  # 8 -> change to 8 bits
             self.serial.bytesize = serial.EIGHTBITS
             self.dump_port_settings()
-        elif c == '7':                          # 7 -> change to 8 bits
+        elif c == '7':  # 7 -> change to 8 bits
             self.serial.bytesize = serial.SEVENBITS
             self.dump_port_settings()
-        elif c in 'eE':                         # E -> change to even parity
+        elif c in 'eE':  # E -> change to even parity
             self.serial.parity = serial.PARITY_EVEN
             self.dump_port_settings()
-        elif c in 'oO':                         # O -> change to odd parity
+        elif c in 'oO':  # O -> change to odd parity
             self.serial.parity = serial.PARITY_ODD
             self.dump_port_settings()
-        elif c in 'mM':                         # M -> change to mark parity
+        elif c in 'mM':  # M -> change to mark parity
             self.serial.parity = serial.PARITY_MARK
             self.dump_port_settings()
-        elif c in 'sS':                         # S -> change to space parity
+        elif c in 'sS':  # S -> change to space parity
             self.serial.parity = serial.PARITY_SPACE
             self.dump_port_settings()
-        elif c in 'nN':                         # N -> change to no parity
+        elif c in 'nN':  # N -> change to no parity
             self.serial.parity = serial.PARITY_NONE
             self.dump_port_settings()
-        elif c == '1':                          # 1 -> change to 1 stop bits
+        elif c == '1':  # 1 -> change to 1 stop bits
             self.serial.stopbits = serial.STOPBITS_ONE
             self.dump_port_settings()
-        elif c == '2':                          # 2 -> change to 2 stop bits
+        elif c == '2':  # 2 -> change to 2 stop bits
             self.serial.stopbits = serial.STOPBITS_TWO
             self.dump_port_settings()
-        elif c == '3':                          # 3 -> change to 1.5 stop bits
+        elif c == '3':  # 3 -> change to 1.5 stop bits
             self.serial.stopbits = serial.STOPBITS_ONE_POINT_FIVE
             self.dump_port_settings()
-        elif c in 'xX':                         # X -> change software flow control
+        elif c in 'xX':  # X -> change software flow control
             self.serial.xonxoff = (c == 'X')
             self.dump_port_settings()
-        elif c in 'rR':                         # R -> change hardware flow control
+        elif c in 'rR':  # R -> change hardware flow control
             self.serial.rtscts = (c == 'R')
             self.dump_port_settings()
-        elif c == '\x07':         # CTRL+G - Synchronise code directory contents to MicroPython filesystem
+        elif c == '\x07':  # CTRL+G - Synchronise code directory contents to MicroPython filesystem
             if self.syncdir == None:
                 print("Please run mpy-miniterm with syncdir specified")
-            else:            
+            else:
                 self.mpy_sync()
-                
+
         else:
             sys.stderr.write('--- unknown menu character {} --\n'.format(key_description(c)))
 
@@ -638,51 +646,52 @@ def fileExists(fn):
         self.repl_control.command('import os')
         self.repl_control.command(helper_fns)
 
-        self.mpy_sync_files([ (f, os.path.split(f)[1]) for f in [self.syncdir]] )
+        self.mpy_sync_files([(f, os.path.split(f)[1]) for f in [self.syncdir]])
         if self.delete:
             self.mpy_delete_strays(self.syncdir, '')
-        self.serial.write(b"\x03\x02") # exit raw mode
+        self.serial.write(b"\x03\x02")  # exit raw mode
         self._start_reader()
-        
+
     def mpy_sync_files(self, files):
         for source, dest in files:
             if os.path.isdir(source):
                 self.repl_control.statement('os.mkdir', dest)
-                self.mpy_sync_files([ (os.path.join(source, x), os.path.join(dest, x)) for x in os.listdir(source) if not x.startswith(".") ])
+                self.mpy_sync_files([(os.path.join(source, x), os.path.join(dest, x)) for x in os.listdir(source) if
+                                     not x.startswith(".")])
             else:
                 self.mpy_copy_file(source, dest)
 
     def mpy_copy_file(self, source, dest):
-            if sha256(source) == self.repl_control.function('sha256', dest):
-                print("no change %s => %s" % (repr(source), repr(dest)))                
-                return
-            else:
-                print("copying   %s => %s" % (repr(source), repr(dest)))                
-                fh = open(source, "rb")
-                rfh = self.repl_control.variable('open', '/'+dest, "wb")
-                while True:
-                    s = fh.read(50)
-                    if len(s) == 0: break
-                    rfh.method('write', s)
-                    time.sleep(self.repl_control.delay/1000.0)
-                rfh.method('flush')
-                rfh.method('close')
+        if sha256(source) == self.repl_control.function('sha256', dest):
+            print("no change %s => %s" % (repr(source), repr(dest)))
+            return
+        else:
+            print("copying   %s => %s" % (repr(source), repr(dest)))
+            fh = open(source, "rb")
+            rfh = self.repl_control.variable('open', '/' + dest, "wb")
+            while True:
+                s = fh.read(50)
+                if len(s) == 0: break
+                rfh.method('write', s)
+                time.sleep(self.repl_control.delay / 1000.0)
+            rfh.method('flush')
+            rfh.method('close')
 
     def mpy_delete_strays(self, source, dest):
         for f in self.repl_control.function('os.listdir', dest):
-            rname = "{}/{}".format(dest, f) # remote name
+            rname = "{}/{}".format(dest, f)  # remote name
             mode = self.repl_control.function('os.stat', rname)[0]
-            if mode & stat.S_IFREG: # is file
+            if mode & stat.S_IFREG:  # is file
                 if not os.path.exists("{}{}".format(source, rname)):
                     print ("Deleting file {}".format(rname))
                     self.repl_control.function('os.remove', rname)
-            elif mode & stat.S_IFDIR: # is directory
-                #print ("Walking into dir {}".format(rname))
+            elif mode & stat.S_IFDIR:  # is directory
+                # print ("Walking into dir {}".format(rname))
                 self.mpy_delete_strays(source, rname)
                 if not os.path.exists("{}{}".format(source, rname)):
                     print("Removing directory {}".format(rname))
-                    self.repl_control.function('os.rmdir', rname) 
-                           
+                    self.repl_control.function('os.rmdir', rname)
+
     def upload_file(self):
         """Ask user for filenname and send its contents"""
         sys.stderr.write('\n--- File to upload: ')
@@ -700,7 +709,7 @@ def fileExists(fn):
                             self.serial.write(block)
                             # Wait for output buffer to drain.
                             self.serial.flush()
-                            sys.stderr.write('.')   # Progress indicator.
+                            sys.stderr.write('.')  # Progress indicator.
                     sys.stderr.write('\n--- File {} sent ---\n'.format(filename))
                 except IOError as e:
                     sys.stderr.write('--- ERROR opening file {}: {} ---\n'.format(filename, e))
@@ -799,7 +808,7 @@ def fileExists(fn):
                 exit=key_description(self.exit_character)))
             k = self.console.getkey()
             if k == self.exit_character:
-                self.stop()             # exit app
+                self.stop()  # exit app
                 break
             elif k in 'pP':
                 do_change_port = True
@@ -934,13 +943,13 @@ def main(default_port=None, default_baudrate=115200, default_rts=None, default_d
         "--sync-dir",
         help="folder to sync to MicroPython filesytem",
         default=None)
-    
+
     group.add_argument(
         '--delete',
         action='store_true',
         help='delete files present on MicroPython filesystem but not on host',
         default=False)
-    
+
     group = parser.add_argument_group("data handling")
 
     group.add_argument(
@@ -1110,6 +1119,7 @@ def main(default_port=None, default_baudrate=115200, default_rts=None, default_d
         sys.stderr.write('\n--- exit ---\n')
     miniterm.join()
     miniterm.close()
+
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 if __name__ == '__main__':
